@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'routes.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -13,60 +12,78 @@ class ProfilePage extends StatefulWidget {
 class _ProfilePageState extends State<ProfilePage> {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-
-  // Controladores de los campos del formulario
-  final TextEditingController nombreController = TextEditingController();
-  final TextEditingController telefonoController = TextEditingController();
-  final TextEditingController enfermedadesController = TextEditingController();
-
   bool _loading = false;
-  // _loading es un interruptor visual:
-  // /true -> muestra un "Cargando..." y bloquea la UI.
-  // /false -> muestra la pantalla normal.
+
+  // --- 1. CONTROLADORES ACTUALIZADOS ---
+  final TextEditingController nombreController = TextEditingController();
+  final TextEditingController edadController = TextEditingController(); // NUEVO
+  final TextEditingController lugarNacimientoController = TextEditingController(); // NUEVO
+  final TextEditingController padecimientosController = TextEditingController(); // RENOMBRADO
 
   @override
   void initState() {
     super.initState();
     _loadUserData();
   }
-  // Aquí creamos la clase que cargará los datos del usuario al iniciar.
 
-  // Cargar datos del usuario desde Firestore
+  // --- 2. FUNCIÓN DE CARGA ACTUALIZADA ---
   Future<void> _loadUserData() async {
     final user = _auth.currentUser;
     if (user == null) return;
+    setState(() => _loading = true);
 
-    final doc = await _firestore.collection('usuarios').doc(user.uid).get();
-    if (doc.exists) {
-      final data = doc.data()!;
-      nombreController.text = data['nombre'] ?? '';
-      telefonoController.text = data['telefono'] ?? '';
-      enfermedadesController.text = data['enfermedades'] ?? ''; // NUEVO (antes historial medico)
+    try {
+      final doc = await _firestore.collection('usuarios').doc(user.uid).get();
+      if (mounted && doc.exists) {
+        final data = doc.data()!;
+        // Llenamos los controladores con los datos de Firebase
+        nombreController.text = data['nombre'] ?? '';
+        edadController.text = data['edad'] ?? ''; // NUEVO
+        lugarNacimientoController.text = data['lugar_nacimiento'] ?? ''; // NUEVO
+        padecimientosController.text = data['padecimientos'] ?? ''; // RENOMBRADO
+      }
+    } catch (e) {
+      // Manejo de error
+    } finally {
+      if (mounted) {
+        setState(() => _loading = false);
+      }
     }
   }
 
-  // Guardar datos del usuario en Firestore
+  // --- 3. FUNCIÓN DE GUARDADO ACTUALIZADA ---
   Future<void> _saveUserData() async {
     final user = _auth.currentUser;
     if (user == null) return;
 
     setState(() => _loading = true);
 
-    await _firestore.collection('usuarios').doc(user.uid).set({
-      'nombre': nombreController.text.trim(),
-      'telefono': telefonoController.text.trim(),
-      'enfermedades': enfermedadesController.text.trim(), // NUEVO (antes historial medico)
-      'email': user.email,
-      'uid': user.uid,
-    }, SetOptions(merge: true)); // Usar merge:true es buena práctica
+    try {
+      // Usamos .set con merge:true para crear o actualizar el documento
+      await _firestore.collection('usuarios').doc(user.uid).set({
+        'nombre': nombreController.text.trim(),
+        'edad': edadController.text.trim(), // NUEVO
+        'lugar_nacimiento': lugarNacimientoController.text.trim(), // NUEVO
+        'padecimientos': padecimientosController.text.trim(), // RENOMBRADO
+        'email': user.email, // Guardamos el email por referencia
+        'uid': user.uid,
+      }, SetOptions(merge: true)); // merge:true evita sobreescribir otros campos
 
-    setState(() => _loading = false);
-
-    // Comprobamos que el widget sigue "montado" antes de usar el BuildContext
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text("Información guardada exitosamente")),
-    );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Información guardada exitosamente")),
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Error al guardar: $e")),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _loading = false);
+      }
+    }
   }
 
   @override
@@ -74,7 +91,7 @@ class _ProfilePageState extends State<ProfilePage> {
     final user = _auth.currentUser;
 
     return Scaffold(
-      appBar: AppBar(title: const Text("Perfil")),
+      appBar: AppBar(title: const Text("Editar Perfil")),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : Padding(
@@ -85,67 +102,53 @@ class _ProfilePageState extends State<ProfilePage> {
                   children: [
                     Text(
                       "Correo: ${user?.email ?? 'No disponible'}",
-                      style: const TextStyle(fontSize: 16),
+                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
                     ),
-                    // Text
-                    const SizedBox(height: 20),
+                    const SizedBox(height: 24),
 
-                    // FORMULARIO
+                    // --- 4. FORMULARIO ACTUALIZADO ---
                     TextField(
                       controller: nombreController,
                       decoration: const InputDecoration(labelText: "Nombre completo"),
-                    ), // TextField
-                    const SizedBox(height: 10),
+                    ),
+                    const SizedBox(height: 12),
 
-                    TextField(
-                      controller: telefonoController,
-                      decoration: const InputDecoration(labelText: "Teléfono"),
-                      keyboardType: TextInputType.phone,
-                    ), // TextField
-                    const SizedBox(height: 10),
+                    TextField( // NUEVO
+                      controller: edadController,
+                      decoration: const InputDecoration(labelText: "Edad"),
+                      keyboardType: TextInputType.number,
+                    ),
+                    const SizedBox(height: 12),
 
-                    TextField(
-                      controller: enfermedadesController, // NUEVO (antes historialController)
-                      decoration: const InputDecoration(labelText: "Padecimientos"), // Ajustado a la tarea
+                    TextField( // NUEVO
+                      controller: lugarNacimientoController,
+                      decoration: const InputDecoration(labelText: "Lugar de nacimiento"),
+                    ),
+                    const SizedBox(height: 12),
+
+                    TextField( // RENOMBRADO
+                      controller: padecimientosController,
+                      decoration: const InputDecoration(labelText: "Padecimientos"),
                       maxLines: 3,
-                    ), // TextField
-                    const SizedBox(height: 20),
+                    ),
+                    const SizedBox(height: 24),
 
                     ElevatedButton(
                       onPressed: _saveUserData,
                       child: const Text("Guardar información"),
-                    ), // ElevatedButton
-                    const SizedBox(height: 30),
-
-                    // ♦ Botón para volver al menú principal
-                    // Este botón ahora regresa a la pantalla anterior (SettingsTab)
-                    ElevatedButton(
-                      onPressed: () {
-                        Navigator.pop(context);
-                      },
-                      child: const Text("Volver a Configuración"),
-                    ), // ElevatedButton
-
+                    ),
                     const SizedBox(height: 20),
-
-                    // ♦ Botón para cerrar sesión
-                    // (Lo movimos a la pantalla de Configuración, pero lo dejo comentado
-                    // por si lo necesitas aquí por alguna razón)
-                    /*
-                    ElevatedButton(
-                      onPressed: () async {
-                        await _auth.signOut();
-                        // Comprobamos que el widget sigue "montado" antes de usar el BuildContext
-                        if (!mounted) return;
-                        Navigator.pushReplacementNamed(context, Routes.login);
+                    
+                    TextButton(
+                      onPressed: () {
+                        Navigator.pop(context); // Regresa a la pantalla de Configuración
                       },
-                      child: const Text("Cerrar sesión"),
-                    ), // ElevatedButton
-                    */
+                      child: const Text("Volver"),
+                    ),
                   ],
-                ), // Column
-              ), // SingleChildScrollView
-            ), // Padding
-    ); // Scaffold
+                ),
+              ),
+            ),
+    );
   }
 }

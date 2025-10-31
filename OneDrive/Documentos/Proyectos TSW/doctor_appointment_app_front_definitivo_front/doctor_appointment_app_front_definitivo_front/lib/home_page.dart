@@ -16,12 +16,14 @@ class _HomePageState extends State<HomePage> {
   // Variable para guardar el índice de la pestaña seleccionada
   int _selectedIndex = 0;
 
-  // Lista de los 3 widgets (pestañas) que se mostrarán
-  static const List<Widget> _widgetOptions = <Widget>[
-    HomeTab(),       // Índice 0: Inicio
-    MessagesTab(),   // Índice 1: Mensajes
-    SettingsTab(),   // Índice 2: Configuración
+  // --- ESTA ES LA LISTA CORREGIDA ---
+  // Quitamos 'const' de la lista y se lo ponemos solo a los widgets que lo soportan.
+  static final List<Widget> _widgetOptions = <Widget>[
+    const HomeTab(),     // Este sí es const
+    MessagesTab(),       // Este NO es const
+    const SettingsTab(), // Este sí es const
   ];
+  // --- FIN DE LA CORRECCIÓN ---
 
   // Lista de los títulos para la AppBar
   static const List<String> _appBarTitles = <String>[
